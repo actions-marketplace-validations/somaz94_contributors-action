@@ -24,7 +24,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Generate Contributors (dry-run)
         id: contributors-dry-run
@@ -51,7 +51,7 @@ jobs:
     needs: [smoke-test-dry-run]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Generate Contributors (table)
         id: contributors-table
@@ -81,7 +81,7 @@ jobs:
     needs: [smoke-test-dry-run]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Generate Contributors (list)
         id: contributors-list
@@ -111,7 +111,7 @@ jobs:
     needs: [smoke-test-dry-run]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Generate Contributors (image)
         id: contributors-image
@@ -141,7 +141,7 @@ jobs:
     needs: [smoke-test-table-format]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Generate with Exclude and Sort by Name
         id: contributors-filtered
@@ -173,7 +173,7 @@ jobs:
     needs: [smoke-test-table-format]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Create test file with markers
         run: |
@@ -228,7 +228,7 @@ jobs:
     needs: [smoke-test-list-format, smoke-test-image-format]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Fetch Contributors from Different Repo
         id: contributors-cross
@@ -262,7 +262,7 @@ jobs:
     needs: [smoke-test-exclude-and-sort, smoke-test-section-update]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v6.0.2
 
       - name: Generate with All Custom Options
         id: contributors-custom
