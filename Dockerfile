@@ -8,7 +8,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /contributors-action ./cmd/main.go
 
 # Runtime stage
-FROM alpine:3.23
+FROM alpine:3.24
 
 RUN apk add --no-cache git ca-certificates
 
