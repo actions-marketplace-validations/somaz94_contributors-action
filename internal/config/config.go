@@ -28,55 +28,72 @@ type Config struct {
 func Load() (*Config, error) {
 	owner, repo := parseRepository()
 
-	columns, err := strconv.Atoi(getEnv("INPUT_COLUMNS", "6"))
+	columns, err := getEnvInt("INPUT_COLUMNS", "6")
 	if err != nil {
-		return nil, fmt.Errorf("invalid columns value: %w", err)
+		return nil, err
 	}
 
-	maxContributors, err := strconv.Atoi(getEnv("INPUT_MAX_CONTRIBUTORS", "0"))
+	maxContributors, err := getEnvInt("INPUT_MAX_CONTRIBUTORS", "0")
 	if err != nil {
-		return nil, fmt.Errorf("invalid max_contributors value: %w", err)
+		return nil, err
 	}
 
-	avatarSize, err := strconv.Atoi(getEnv("INPUT_AVATAR_SIZE", "100"))
+	avatarSize, err := getEnvInt("INPUT_AVATAR_SIZE", "100")
 	if err != nil {
-		return nil, fmt.Errorf("invalid avatar_size value: %w", err)
-	}
-
-	excludeStr := getEnv("INPUT_EXCLUDE", "")
-	var exclude []string
-	if excludeStr != "" {
-		for _, e := range strings.Split(excludeStr, ",") {
-			trimmed := strings.TrimSpace(e)
-			if trimmed != "" {
-				exclude = append(exclude, trimmed)
-			}
-		}
+		return nil, err
 	}
 
 	cfg := &Config{
 		Token:           getEnv("INPUT_TOKEN", ""),
-		Owner:           getEnvOr("INPUT_OWNER", owner),
-		Repo:            getEnvOr("INPUT_REPO", repo),
+		Owner:           getEnv("INPUT_OWNER", owner),
+		Repo:            getEnv("INPUT_REPO", repo),
 		OutputFile:      getEnv("INPUT_OUTPUT_FILE", "CONTRIBUTORS.md"),
 		Format:          getEnv("INPUT_FORMAT", "table"),
 		Columns:         columns,
 		MaxContributors: maxContributors,
-		Exclude:         exclude,
-		IncludeBots:     getEnv("INPUT_INCLUDE_BOTS", "false") == "true",
+		Exclude:         parseCSV(getEnv("INPUT_EXCLUDE", "")),
+		IncludeBots:     getEnvBool("INPUT_INCLUDE_BOTS"),
 		AvatarSize:      avatarSize,
 		SortBy:          getEnv("INPUT_SORT_BY", "contributions"),
-		UpdateSection:   getEnv("INPUT_UPDATE_SECTION", "false") == "true",
+		UpdateSection:   getEnvBool("INPUT_UPDATE_SECTION"),
 		SectionStart:    getEnv("INPUT_SECTION_START", "<!-- CONTRIBUTORS-START -->"),
 		SectionEnd:      getEnv("INPUT_SECTION_END", "<!-- CONTRIBUTORS-END -->"),
-		DryRun:          getEnv("INPUT_DRY_RUN", "false") == "true",
+		DryRun:          getEnvBool("INPUT_DRY_RUN"),
 	}
 
 	if cfg.Owner == "" || cfg.Repo == "" {
 		return nil, fmt.Errorf("owner and repo must be set via inputs or GITHUB_REPOSITORY")
 	}
 
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
+}
+
+func (c *Config) validate() error {
+	switch c.Format {
+	case "table", "list", "image":
+	default:
+		return fmt.Errorf("invalid format %q: must be table, list, or image", c.Format)
+	}
+
+	switch c.SortBy {
+	case "contributions", "name":
+	default:
+		return fmt.Errorf("invalid sort_by %q: must be contributions or name", c.SortBy)
+	}
+
+	if c.Columns < 1 {
+		return fmt.Errorf("columns must be >= 1, got %d", c.Columns)
+	}
+
+	if c.AvatarSize < 1 {
+		return fmt.Errorf("avatar_size must be >= 1, got %d", c.AvatarSize)
+	}
+
+	return nil
 }
 
 func getEnv(key, fallback string) string {
@@ -86,11 +103,34 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getEnvOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+func getEnvBool(key string) bool {
+	return getEnv(key, "false") == "true"
+}
+
+// getEnvInt reads an INPUT_* env var and parses it as int. The error message
+// derives the field name from the key (e.g. INPUT_COLUMNS -> "columns") so
+// downstream error matching stays stable.
+func getEnvInt(key, fallback string) (int, error) {
+	n, err := strconv.Atoi(getEnv(key, fallback))
+	if err != nil {
+		field := strings.ToLower(strings.TrimPrefix(key, "INPUT_"))
+		return 0, fmt.Errorf("invalid %s value: %w", field, err)
 	}
-	return fallback
+	return n, nil
+}
+
+func parseCSV(s string) []string {
+	if s == "" {
+		return nil
+	}
+	var result []string
+	for _, e := range strings.Split(s, ",") {
+		trimmed := strings.TrimSpace(e)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
 
 func parseRepository() (string, string) {

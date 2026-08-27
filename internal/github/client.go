@@ -1,13 +1,19 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
-const apiBaseURL = "https://api.github.com"
+const (
+	apiBaseURL         = "https://api.github.com"
+	defaultHTTPTimeout = 30 * time.Second
+	perPage            = 100
+)
 
 // Client is a GitHub API client.
 type Client struct {
@@ -20,7 +26,7 @@ type Client struct {
 func NewClient(token string) *Client {
 	return &Client{
 		token:      token,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: defaultHTTPTimeout},
 		baseURL:    apiBaseURL,
 	}
 }
@@ -29,43 +35,22 @@ func NewClient(token string) *Client {
 func NewClientWithBaseURL(token, baseURL string) *Client {
 	return &Client{
 		token:      token,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Timeout: defaultHTTPTimeout},
 		baseURL:    baseURL,
 	}
 }
 
 // FetchContributors fetches all contributors for the given repository.
-func (c *Client) FetchContributors(owner, repo string, includeBots bool) ([]Contributor, error) {
+// The context bounds the entire pagination loop.
+func (c *Client) FetchContributors(ctx context.Context, owner, repo string, includeBots bool) ([]Contributor, error) {
 	var allContributors []Contributor
 	page := 1
 
 	for {
-		url := fmt.Sprintf("%s/repos/%s/%s/contributors?per_page=100&page=%d", c.baseURL, owner, repo, page)
-		req, err := http.NewRequest("GET", url, nil)
+		url := fmt.Sprintf("%s/repos/%s/%s/contributors?per_page=%d&page=%d", c.baseURL, owner, repo, perPage, page)
+		contributors, err := c.fetchPage(ctx, url)
 		if err != nil {
-			return nil, fmt.Errorf("creating request: %w", err)
-		}
-
-		if c.token != "" {
-			req.Header.Set("Authorization", "Bearer "+c.token)
-		}
-		req.Header.Set("Accept", "application/vnd.github+json")
-		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("fetching contributors: %w", err)
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(resp.Body)
-			return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
-		}
-
-		var contributors []Contributor
-		if err := json.NewDecoder(resp.Body).Decode(&contributors); err != nil {
-			return nil, fmt.Errorf("decoding response: %w", err)
+			return nil, err
 		}
 
 		if len(contributors) == 0 {
@@ -74,21 +59,53 @@ func (c *Client) FetchContributors(owner, repo string, includeBots bool) ([]Cont
 
 		allContributors = append(allContributors, contributors...)
 
-		if len(contributors) < 100 {
+		if len(contributors) < perPage {
 			break
 		}
 		page++
 	}
 
 	if !includeBots {
-		filtered := make([]Contributor, 0, len(allContributors))
-		for _, c := range allContributors {
-			if c.Type != "Bot" {
-				filtered = append(filtered, c)
-			}
-		}
-		allContributors = filtered
+		allContributors = FilterBots(allContributors)
 	}
 
 	return allContributors, nil
+}
+
+// fetchPage fetches a single page. Body is drained and closed before return
+// to keep connection reuse healthy and avoid per-loop defer accumulation.
+func (c *Client) fetchPage(ctx context.Context, url string) ([]Contributor, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetching contributors: %w", err)
+	}
+	defer func() {
+		// Drain and close so the connection can be reused; neither failure is
+		// actionable once the response has been read.
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var contributors []Contributor
+	if err := json.NewDecoder(resp.Body).Decode(&contributors); err != nil {
+		return nil, fmt.Errorf("decoding response: %w", err)
+	}
+
+	return contributors, nil
 }
