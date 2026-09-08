@@ -2,11 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased (2026-08-18)
+## Unreleased (2026-09-08)
+
+### Continuous Integration
+
+- retry mirror pushes on transient remote failures ([5e49b27](https://github.com/somaz94/contributors-action/commit/5e49b277ca45a0f402826bf67f4dca074e124e64))
+- drop the dead issue-close trigger from changelog generation ([d026dad](https://github.com/somaz94/contributors-action/commit/d026dad7a5ac7af3dad671f8e158f42509cc23bb))
+- skip release-triggered runs on the image-seeding dispatch ([479ca4c](https://github.com/somaz94/contributors-action/commit/479ca4c220a714996a323de75ce10edba23dfce4))
 
 ### Chores
 
+- **deps:** bump golang from `4c9fe60` to `cf6fca6` ([6274c59](https://github.com/somaz94/contributors-action/commit/6274c591e0430595b37a37e30af27ccd63f96967))
+- **deps:** bump golang in the docker-minor group (#13) ([#13](https://github.com/somaz94/contributors-action/pull/13)) ([2c949fb](https://github.com/somaz94/contributors-action/commit/2c949fb6ff038eab0b2bd20c0b7b525377b87a7d))
 - **deps:** bump golang from `0178a64` to `3889b42` ([0f2e3a7](https://github.com/somaz94/contributors-action/commit/0f2e3a72a4f3c4df7f69fd1cd2e0d2817d2257fa))
+
+### Contributors
+
+- somaz
 
 <br/>
 
